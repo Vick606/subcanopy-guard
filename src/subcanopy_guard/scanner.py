@@ -19,11 +19,13 @@ ScanResult and optionally raises InjectionRiskError via the protect()
 decorator.
 
 Combination strategy:
-1. Weighted sum of density and discontinuity risks.
-2. Agreement bonus when both signals fire above a moderate threshold.
-   A single strong signal is not diluted by a weak companion.
-3. Provenance multiplier applied after combination.
-4. Severity classification from the final adjusted risk.
+1. Combine density and discontinuity, honoring signal availability.
+   A signal that cannot be computed (input too short) does NOT dilute
+   the available signal with a phantom zero. If both are available, use
+   a weighted sum with an agreement bonus; if only one is available,
+   use it directly; if neither is available, the combined risk is 0.0.
+2. Provenance multiplier applied after combination.
+3. Severity classification from the final adjusted risk.
 
 References:
 - ASCEND severity model (critical/high/medium/low/info)
@@ -184,17 +186,34 @@ class ContextScanner:
         disc_result = discontinuity.score(text, self._discontinuity_config)
         i_risk = disc_result.risk
 
-        # Stage 3: weighted combination with agreement bonus
-        base = (
-            self.config.density_weight * d_risk
-            + self.config.discontinuity_weight * i_risk
-        )
-        both_fired = (
-            d_risk >= self.config.agreement_threshold
-            and i_risk >= self.config.agreement_threshold
-        )
-        if both_fired:
-            base = min(base * self.config.agreement_bonus, 1.0)
+        # Stage 3: combine signals, honoring availability.
+        #
+        # If a signal is not available (input too short to compute it), we
+        # do NOT dilute the available signal with a phantom zero. A signal
+        # that cannot be computed should not vote against a signal that can.
+        # This matters for short single-sentence injections (the majority
+        # of direct-injection and jailbreak attacks in PromptWall), where
+        # discontinuity has no adjacent sentences to compare.
+        d_available = density_result.available
+        i_available = disc_result.available
+
+        if d_available and i_available:
+            base = (
+                self.config.density_weight * d_risk
+                + self.config.discontinuity_weight * i_risk
+            )
+            both_fired = (
+                d_risk >= self.config.agreement_threshold
+                and i_risk >= self.config.agreement_threshold
+            )
+            if both_fired:
+                base = min(base * self.config.agreement_bonus, 1.0)
+        elif d_available:
+            base = d_risk
+        elif i_available:
+            base = i_risk
+        else:
+            base = 0.0
 
         # Stage 4: provenance adjustment
         prov_result = provenance.adjust(base, effective_source, self._provenance_config)
@@ -253,7 +272,11 @@ class ContextScanner:
         def decorator(func: Callable[..., _T]) -> Callable[..., _T]:
             @functools.wraps(func)
             def wrapper(*args: Any, **kwargs: Any) -> _T:
-                text = kwargs.get(arg_name, "") if arg_name is not None else args[0] if args else ""
+                text = (
+                    kwargs.get(arg_name, "")
+                    if arg_name is not None
+                    else args[0] if args else ""
+                )
 
                 result = self.scan(str(text), source=source)
                 if result.is_blocking(self.config.block_severity):

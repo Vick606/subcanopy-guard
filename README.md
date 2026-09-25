@@ -8,10 +8,10 @@ Fast, dependency-free, and built to catch what whole-sequence classifiers miss.
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 [![Python 3.14+](https://img.shields.io/badge/python-3.14+-3776AB?logo=python&logoColor=white)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-89_passing-brightgreen.svg)](#)
-[![AgentDojo](https://img.shields.io/badge/AgentDojo-86.5%25_@_3.1%25_FP-8A2BE2)](#results)
-[![PromptWall](https://img.shields.io/badge/PromptWall-14.7%25_@_0%25_FP-blueviolet)](#results)
-[![p50](https://img.shields.io/badge/p50-0.34_ms-orange)](#results)
+[![Tests](https://img.shields.io/badge/tests-111_passing-brightgreen.svg)](#)
+[![AgentDojo](https://img.shields.io/badge/AgentDojo-86.5%25_@_5.2%25_FP-8A2BE2)](#results)
+[![PromptWall](https://img.shields.io/badge/PromptWall-34.7%25_@_0%25_FP-blueviolet)](#results)
+[![p50](https://img.shields.io/badge/p50-0.73_ms-orange)](#results)
 
 </div>
 
@@ -27,9 +27,9 @@ The reason is **context dilution**: the same attack that a classifier catches wi
 
 ## The approach
 
-Subcanopy Guard attacks the problem from a different angle. Instead of classifying the whole text at once, it slides a window across the input and measures **local instruction density** — the concentration of imperative verbs within that window. It then layers on two more signals:
+Subcanopy Guard attacks the problem from a different angle. Instead of classifying the whole text at once, it slides a window across the input and measures **local instruction density** — the concentration of imperative verbs and jailbreak phrases within that window. It then layers on two more signals:
 
-- 🧠 **Density** — imperative-verb concentration in a sliding window
+- 🧠 **Density** — imperative-verb and phrase concentration in a sliding window
 - 📐 **Discontinuity** — style breaks between adjacent sentences
 - 🎯 **Provenance** — risk multiplier by source (tool output, retrieved doc, user input, system prompt)
 
@@ -43,7 +43,7 @@ No ML models. No external API calls. Pure Python standard library. **Sub-millise
 
 | Threshold | Caught | False positives | p50 |
 |---|---|---|---|
-| **CRITICAL** | **544/629 (86.5%)** | **3/97 (3.1%)** | **0.34 ms** |
+| **CRITICAL** | **544/629 (86.5%)** | **5/97 (5.2%)** | **0.73 ms** |
 | HIGH | 629/629 (100%) | 11/97 (11.3%) | 0.67 ms |
 
 ### Comparison to published baselines on the same corpus
@@ -55,9 +55,9 @@ No ML models. No external API calls. Pure Python standard library. **Sub-millise
 | llm-guard | 20% | 2% | 124 ms |
 | protectai-deberta-v2 | 23% | 4% | 163 ms |
 | jailbreak-detector-large | 51% | 2% | 110 ms |
-| **subcanopy-guard (CRITICAL)** | **86.5%** | **3.1%** | **0.34 ms** |
+| **subcanopy-guard (CRITICAL)** | **86.5%** | **5.2%** | **0.73 ms** |
 
-<sub>Baselines from [`rudratoshs/buried-injections`](https://github.com/rudratoshs/buried-injections). All detectors evaluated on CPU. At `--block-at CRITICAL` we beat the paper's leader by 35 points at comparable false-positive rate and 300× lower latency.</sub>
+<sub>Baselines from [`rudratoshs/buried-injections`](https://github.com/rudratoshs/buried-injections). All detectors evaluated on CPU. At `--block-at CRITICAL` we beat the paper's leader by 35 points at comparable false-positive rate and ~150× lower latency.</sub>
 
 ### PromptWall — 430 attacks, 8 categories, 70 safe prompts
 
@@ -65,19 +65,19 @@ The **generalization test**: 8 different attack families with distinct templates
 
 | Category | Caught | Rate |
 |---|---|---|
-| indirect_injection | 16/46 | 34.8% |
-| multi_turn_drift | 8/35 | 22.9% |
-| direct_injection | 21/95 | 22.1% |
-| encoded_attack | 5/44 | 11.4% |
-| social_engineering | 4/42 | 9.5% |
-| jailbreak | 6/74 | 8.1% |
-| persona_hijacking | 2/43 | 4.7% |
-| prompt_exfiltration | 1/51 | 2.0% |
-| **Overall** | **63/430** | **14.7%** |
+| multi_turn_drift | 21/35 | 60.0% |
+| indirect_injection | 22/46 | 47.8% |
+| direct_injection | 37/95 | 38.9% |
+| social_engineering | 16/42 | 38.1% |
+| jailbreak | 27/74 | 36.5% |
+| persona_hijacking | 15/43 | 34.9% |
+| encoded_attack | 8/44 | 18.2% |
+| prompt_exfiltration | 3/51 | 5.9% |
+| **Overall** | **149/430** | **34.7%** |
 
-**False positives: 0/70 (0%).** p50 latency: 0.04 ms.
+**False positives: 0/70 (0%).** p50 latency: 0.08 ms.
 
-<sub>Dataset: [`cyberec/promptwall-injection-dataset`](https://huggingface.co/datasets/cyberec/promptwall-injection-dataset). The lexicon gap on jailbreak and persona attacks is documented and scheduled for v0.3.0 — see [ROADMAP.md](ROADMAP.md).</sub>
+<sub>Dataset: [`cyberec/promptwall-injection-dataset`](https://huggingface.co/datasets/cyberec/promptwall-injection-dataset). Overall recall more than doubled from v0.2.0 (14.7% → 34.7%) with zero new false positives. Remaining gaps in prompt exfiltration and encoded attacks are scheduled for v0.4.0 — see [ROADMAP.md](ROADMAP.md).</sub>
 
 ---
 
@@ -128,14 +128,14 @@ def process(tool_result: str) -> str:
 
 Three signals, combined.
 
-### 1. Density — sliding window over imperative verbs
+### 1. Density — sliding window over imperatives and phrases
 
-Tokenize into words and punctuation. Slide a 25-token window with 10-token stride. Weight each token against a ~60-verb lexicon:
+Two scoring layers feed a sliding 25-token window with 10-token stride:
 
-- **STRONG** verbs (ignore, disregard, jailbreak, override) → weight 1.0
-- **REGULAR** verbs (print, execute, act, send) → weight 0.5
+- **Token layer.** A ~60-verb lexicon with two tiers. STRONG verbs (`ignore`, `disregard`, `jailbreak`, `override`) weigh 1.5; REGULAR verbs (`print`, `execute`, `act`, `send`) weigh 0.5.
+- **Phrase layer.** Multi-word patterns (`developer mode`, `no restrictions`, `DAN`, `ignore all previous`, `act as`, `pretend you are`) contribute their weight once per occurrence to the first overlapping token.
 
-Window score is `min(weighted / 2.0, 1.0)`. The highest window score is the density risk.
+Window score is `min(weighted / 2.0, 1.0)`. The highest window score is the density risk. A single STRONG verb or a single jailbreak phrase pushes a window to HIGH on its own.
 
 **Why it defeats context dilution:** the window measures *local* concentration, not *global* presence. An injection buried in 500 tokens of benign JSON still produces a localized spike that the window catches.
 
@@ -186,16 +186,17 @@ This is a **heuristic detector**, not a classifier. It is deliberately complemen
 
 - ✅ Template-based indirect injection buried in tool output (AgentDojo)
 - ✅ Distinguishing injection register from tool-output register
+- ✅ Recognising common jailbreak and persona-hijack vocabulary
 - ✅ Running fast enough for per-tool-call scanning in production
 
 **Weak at:**
 
 - ❌ **Encoded attacks** — base64, morse, unicode homoglyphs are not decoded
-- ❌ **Jailbreak vocabulary we haven't listed** — DAN, developer mode, "no restrictions"
+- ❌ **Prompt exfiltration phrased without our keywords** — e.g. "exact instructions word for word"
 - ❌ **Paraphrased attacks** that don't change register or use known verbs
 - ❌ **Sophisticated social engineering** — polite, embedded, indistinguishable from benign requests
 
-**Known false positive regression:** the v0.2.0 availability fix introduced 1 additional false positive on AgentDojo v1 (2/97 → 3/97). Small, but real. Tracked for v0.3.0.
+**Known false positives on AgentDojo v1:** 5/97 (5.2%) at `--block-at CRITICAL`. The v0.3.0 phrase layer introduced 2 additional false positives (3/97 → 5/97) in exchange for doubling PromptWall recall. Tradeoff documented; tracked for a future tuning pass.
 
 > ⚠️ **Do not use Subcanopy Guard as your only defense.** It is a fast pre-filter. Pair it with a transformer classifier for direct injection and with taint-tracking for agent tool-call security.
 
@@ -205,12 +206,12 @@ This is a **heuristic detector**, not a classifier. It is deliberately complemen
 
 | | |
 |---|---|
-| Per-scan latency | 0.04–0.67 ms |
+| Per-scan latency | 0.08–0.73 ms |
 | ML models | None |
 | Runtime dependencies | None |
 | Python | 3.14+ |
 
-Compare to the fastest transformer detector (`fmops-distilbert`, 31 ms) — Subcanopy Guard is ~100× faster, but trades recall on encoded and socially-engineered attacks for that speed. That tradeoff is deliberate.
+Compare to the fastest transformer detector (`fmops-distilbert`, 31 ms) — Subcanopy Guard is ~40–150× faster, but trades recall on encoded and socially-engineered attacks for that speed. That tradeoff is deliberate.
 
 ---
 
@@ -235,7 +236,7 @@ All contributions require a signed [CLA](CLA.md). See [CONTRIBUTING.md](CONTRIBU
 
 See [ROADMAP.md](ROADMAP.md). Highlights:
 
-- **v0.3.0** — lexicon expansion for jailbreak and persona attacks
+- **v0.3.0** — lexicon expansion for jailbreak and persona attacks ✅ shipped
 - **v0.4.0** — optional decoding layer for base64 and homoglyphs
 - **v0.5.0** — streaming scanner and framework integrations
 

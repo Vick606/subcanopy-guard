@@ -1,0 +1,31 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+*.py[cod]
+build/
+dist/
+wheels/
+*.egg-info/
+
+# Virtual environments
+.venv
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+
+# Coverage
+.coverage
+htmlcov/
+
+# Benchmark data (large, downloaded separately)
+*.jsonl
+!bench/fixtures/*.jsonl
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+
+# Internal working docs (not for public repo)
+PROGRESS.md

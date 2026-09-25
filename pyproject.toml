@@ -1,0 +1,47 @@
+[project]
+name = "subcanopy-guard"
+version = "0.1.0"
+description = "Context-aware indirect prompt injection scanner for AI agent tool outputs"
+readme = "README.md"
+authors = [{ name = "Victor", email = "vickoch20@gmail.com" }]
+requires-python = ">=3.14"
+license = { text = "AGPL-3.0-or-later" }
+keywords = ["security", "prompt-injection", "llm", "ai-agents", "owasp"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Security",
+]
+dependencies = []
+
+[project.scripts]
+scg = "subcanopy_guard.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/Vick606/subcanopy-guard"
+Repository = "https://github.com/Vick606/subcanopy-guard"
+Issues = "https://github.com/Vick606/subcanopy-guard/issues"
+"Commercial License" = "https://github.com/Vick606/subcanopy-guard/blob/main/COMMERCIAL_LICENSE.md"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=6.0",
+    "ruff>=0.8",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.18,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"

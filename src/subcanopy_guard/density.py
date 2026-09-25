@@ -159,7 +159,7 @@ class DensityConfig:
     hotspot_threshold: float = 0.5
     """Windows scoring at or above this value are reported as hotspots."""
 
-    min_tokens_for_scoring: int = 10
+    min_tokens_for_scoring: int = 5
     """Inputs with fewer tokens than this are scored 0.0 (too short to judge)."""
 
 

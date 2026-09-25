@@ -174,6 +174,9 @@ class DensityResult:
     risk: float
     """Normalized risk score in [0.0, 1.0]."""
 
+    available: bool = True
+    """True if the input was long enough to score. False for very short inputs."""
+
     hotspots: list[tuple[int, int]] = field(default_factory=list)
     """Character-offset ranges (start, end) of windows exceeding the threshold."""
 
@@ -234,7 +237,7 @@ def score(
     tokens = _tokenize(text)
 
     if len(tokens) < cfg.min_tokens_for_scoring:
-        return DensityResult(risk=0.0)
+        return DensityResult(risk=0.0, available=False)
 
     # Pre-compute per-token weights once. This avoids repeated set
     # lookups in the hot loop and lets us use C-level sum() over slices.
@@ -265,6 +268,7 @@ def score(
 
     return DensityResult(
         risk=risk,
+        available=True,
         hotspots=hotspots,
         window_scores=window_scores,
     )

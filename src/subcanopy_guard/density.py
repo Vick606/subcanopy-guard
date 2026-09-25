@@ -14,17 +14,24 @@
 """Sliding-window instruction density scoring.
 
 This module is the core detection mechanism of Subcanopy Guard. It measures
-the local concentration of imperative verbs in a text using a sliding
-window over the token stream. Unlike whole-sequence classifiers, this
-approach is structurally immune to context dilution: an injection buried
-in 500 tokens of benign JSON still produces a localized density spike that
-the window catches.
+the local concentration of imperative verbs and jailbreak phrases in a
+text using a sliding window over the token stream. Unlike whole-sequence
+classifiers, this approach is structurally immune to context dilution:
+an injection buried in 500 tokens of benign JSON still produces a
+localized density spike that the window catches.
 
-The scoring is weighted. Verbs that are highly diagnostic of prompt
-injection ("ignore", "disregard", "jailbreak") count more than common
-imperatives ("print", "show", "run"). The window score is normalized by
-a fixed target count rather than by window size, so a short injection
-in a large window still scores high.
+Scoring has two layers:
+
+1. Token-level. A curated verb lexicon with two tiers:
+   STRONG verbs (weight 1.5) are highly diagnostic of injection
+   ("ignore", "disregard", "jailbreak"); REGULAR verbs (weight 0.5) are
+   common imperatives ("print", "run", "send"). The window score is
+   normalized by a fixed target count, not by window size.
+
+2. Phrase-level. Multi-word patterns ("developer mode", "no restrictions",
+   "ignore all previous") contribute their weight once per occurrence to
+   the first token they overlap. Phrases are necessary because the marker
+   for many jailbreaks is not a single verb.
 """
 
 from __future__ import annotations
@@ -122,7 +129,7 @@ _REGULAR_VERBS: frozenset[str] = frozenset(
 
 _IMPERATIVE_VERBS: frozenset[str] = _STRONG_VERBS | _REGULAR_VERBS
 
-_STRONG_WEIGHT = 1.0
+_STRONG_WEIGHT = 1.5
 _REGULAR_WEIGHT = 0.5
 
 # Pre-compiled regex for the diagnostic `matches()` helper.
@@ -136,6 +143,62 @@ _TOKEN_RE = re.compile(r"\w+|[^\w\s]", re.UNICODE)
 
 
 # ---------------------------------------------------------------------------
+# Phrase lexicon
+# ---------------------------------------------------------------------------
+# Multi-word patterns that mark jailbreaks, persona hijacking, or instruction
+# override. Each pattern contributes its weight once per occurrence to the
+# first token it overlaps. Weights are tuned so a single phrase pushes a
+# window to HIGH risk on its own.
+#
+# Deliberate choices:
+# - `DAN` is case-sensitive so the name "Dan" does not match.
+# - `no (restrictions|filters|...)` requires the qualifier be one of a
+#   small closed set. This avoids flagging sentences like "no rules exist
+#   in this house" in ordinary prose.
+
+_PHRASE_PATTERNS: tuple[tuple[re.Pattern[str], float], ...] = (
+    # Jailbreak markers
+    (re.compile(r"\bdeveloper\s+mode\b", re.IGNORECASE), 1.5),
+    (re.compile(r"\bDAN\b"), 1.5),
+    (re.compile(
+        r"\bno\s+(restrictions|filters|rules|limits|guidelines|boundaries|"
+        r"ethics|safety)\b",
+        re.IGNORECASE,
+    ), 1.5),
+    (re.compile(r"\byou\s+are\s+now\b", re.IGNORECASE), 1.0),
+    (re.compile(r"\bunrestricted\s+(mode|access|version)\b", re.IGNORECASE), 1.5),
+    (re.compile(r"\bno\s+longer\s+(restricted|bound|limited)\b", re.IGNORECASE), 1.5),
+    (re.compile(
+        r"\bwithout\s+(any\s+)?(restrictions|filters|rules|limits)\b",
+        re.IGNORECASE,
+    ), 1.5),
+    # Persona hijacking
+    (re.compile(r"\bact\s+as\s+(if|a|an)\b", re.IGNORECASE), 1.0),
+    (re.compile(r"\bpretend\s+(to\s+be|you\s+are)\b", re.IGNORECASE), 1.0),
+    (re.compile(r"\broleplay\s+as\b", re.IGNORECASE), 1.0),
+    (re.compile(r"\byou\s+are\s+an?\s+(ai|assistant|model)\b", re.IGNORECASE), 0.5),
+    # Instruction override
+    (re.compile(
+        r"\bignore\s+(all\s+|any\s+)?(previous|prior|above|earlier|preceding)\b",
+        re.IGNORECASE,
+    ), 1.5),
+    (re.compile(
+        r"\bdisregard\s+(all\s+|any\s+)?"
+        r"(previous|prior|above|earlier|preceding|instructions|rules)\b",
+        re.IGNORECASE,
+    ), 1.5),
+    (re.compile(
+        r"\bforget\s+(all\s+|any\s+)?(previous|prior|above|earlier)\b",
+        re.IGNORECASE,
+    ), 1.5),
+    (re.compile(
+        r"\boverride\s+(your|all|any)\s+(safety|security|instructions|rules)\b",
+        re.IGNORECASE,
+    ), 1.5),
+)
+
+
+# ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 
@@ -143,8 +206,8 @@ _TOKEN_RE = re.compile(r"\w+|[^\w\s]", re.UNICODE)
 class DensityConfig:
     """Configuration for the density scorer.
 
-    The defaults are tuned so that a 10-token injection buried in a
-    500-token benign document is caught with a single window.
+    The defaults are tuned so that a single STRONG verb or a single
+    jailbreak phrase pushes a window to HIGH risk on its own.
     """
 
     window_tokens: int = 25
@@ -210,7 +273,7 @@ def _window_density(tokens: list[tuple[str, int, int]]) -> float:
 def _token_weight(tok: str) -> float:
     """Weight for a single token.
 
-    Returns 1.0 for STRONG verbs, 0.5 for REGULAR verbs, 0.0 otherwise.
+    Returns 1.5 for STRONG verbs, 0.5 for REGULAR verbs, 0.0 otherwise.
     """
     low = tok.lower()
     if low in _STRONG_VERBS:
@@ -218,6 +281,34 @@ def _token_weight(tok: str) -> float:
     if low in _REGULAR_VERBS:
         return _REGULAR_WEIGHT
     return 0.0
+
+
+def _phrase_weights(
+    text: str,
+    tokens: list[tuple[str, int, int]],
+) -> list[float]:
+    """Compute per-token phrase bonus weights.
+
+    For each phrase pattern found in the text, add the phrase's weight to
+    the first token whose character range overlaps the match. This ensures
+    a multi-token phrase contributes its weight exactly once per occurrence,
+    rather than once per token it spans.
+
+    Returns a list parallel to ``tokens`` with the bonus weight for each.
+    """
+    weights = [0.0] * len(tokens)
+    if not tokens:
+        return weights
+
+    for pattern, weight in _PHRASE_PATTERNS:
+        for match in pattern.finditer(text):
+            start, end = match.span()
+            for i, (_, tok_start, tok_end) in enumerate(tokens):
+                if tok_start < end and tok_end > start:
+                    weights[i] += weight
+                    break
+
+    return weights
 
 
 def score(
@@ -239,9 +330,14 @@ def score(
     if len(tokens) < cfg.min_tokens_for_scoring:
         return DensityResult(risk=0.0, available=False)
 
-    # Pre-compute per-token weights once. This avoids repeated set
-    # lookups in the hot loop and lets us use C-level sum() over slices.
-    weights = [_token_weight(tok) for tok, _, _ in tokens]
+    # Pre-compute per-token weights once. Two layers: verb weights and
+    # phrase weights. They are summed element-wise so each token carries
+    # its combined contribution into the window loop.
+    token_weights = [_token_weight(tok) for tok, _, _ in tokens]
+    phrase_weights = _phrase_weights(text, tokens)
+    weights = [
+        tw + pw for tw, pw in zip(token_weights, phrase_weights, strict=True)
+    ]
 
     window_scores: list[float] = []
     hotspots: list[tuple[int, int]] = []

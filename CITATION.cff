@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: "If you use Subcanopy Guard in research or production, please cite it using these metadata."
+title: "Subcanopy Guard"
+abstract: "Context-aware indirect prompt injection scanner for AI agent tool outputs. Uses sliding-window instruction density and stylometric discontinuity to detect injections buried in tool output."
+type: software
+version: 0.3.0
+date-released: "2026-09-25"
+license: AGPL-3.0-or-later
+repository-code: "https://github.com/Vick606/subcanopy-guard"
+url: "https://github.com/Vick606/subcanopy-guard"
+keywords:
+  - prompt-injection
+  - llm-security
+  - ai-agents
+  - owasp-llm-top-10
+  - ai-security
+authors:
+  - family-names: "Victor"
+    alias: "Vick606"
+    website: "https://github.com/Vick606"
+preferred-citation:
+  type: software
+  title: "Subcanopy Guard"
+  authors:
+    - family-names: "Victor"
+      alias: "Vick606"
+  version: 0.3.0
+  date-released: "2026-09-25"
+  license: AGPL-3.0-or-later
+  repository-code: "https://github.com/Vick606/subcanopy-guard"

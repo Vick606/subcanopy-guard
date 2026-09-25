@@ -29,3 +29,10 @@ Thumbs.db
 
 # Internal working docs (not for public repo)
 PROGRESS.md
+
+# External benchmark datasets (downloaded, not committed)
+vendor/
+
+# Benchmark artifacts (generated)
+bench/corpus_agentdojo.jsonl
+bench/results_scg.json

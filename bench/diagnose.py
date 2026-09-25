@@ -1,5 +1,15 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 Victor
+#
+# This file is part of Subcanopy Guard.
+#
+# Subcanopy Guard is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published
+# by the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Commercial licensing is available for organizations that cannot comply
+# with the AGPL. See COMMERCIAL_LICENSE.md.
 
 """Diagnostic: for a matched attack/benign pair, show where signals differ.
 
@@ -65,7 +75,7 @@ def main() -> None:
 
     # The benign case shares its prefix with the attack. Verify that.
     common_prefix_len = 0
-    for a, b in zip(attack["text"], benign["text"]):
+    for a, b in zip(attack["text"], benign["text"], strict=False):
         if a != b:
             break
         common_prefix_len += 1

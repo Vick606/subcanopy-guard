@@ -151,6 +151,9 @@ class DiscontinuityResult:
     risk: float
     """Normalized risk score in [0.0, 1.0]."""
 
+    available: bool = True
+    """True if there were enough sentences to compute a delta. False otherwise."""
+
     hotspots: list[tuple[int, int]] = field(default_factory=list)
     """Character-offset ranges (start, end) around high-delta sentence pairs."""
 
@@ -227,7 +230,7 @@ def score(
     sentences = _split_sentences(text)
 
     if len(sentences) < cfg.min_sentences:
-        return DiscontinuityResult(risk=0.0)
+        return DiscontinuityResult(risk=0.0, available=False)
 
     features = [_sentence_features(s[0]) for s in sentences]
 
@@ -254,6 +257,7 @@ def score(
 
     return DiscontinuityResult(
         risk=risk,
+        available=True,
         hotspots=hotspots,
         window_scores=deltas,
     )

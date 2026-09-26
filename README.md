@@ -8,10 +8,10 @@ Fast, dependency-free, and built to catch what whole-sequence classifiers miss.
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 [![Python 3.14+](https://img.shields.io/badge/python-3.14+-3776AB?logo=python&logoColor=white)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-111_passing-brightgreen.svg)](#)
+[![Tests](https://img.shields.io/badge/tests-126_passing-brightgreen.svg)](#)
 [![AgentDojo](https://img.shields.io/badge/AgentDojo-86.5%25_@_5.2%25_FP-8A2BE2)](#results)
-[![PromptWall](https://img.shields.io/badge/PromptWall-34.7%25_@_0%25_FP-blueviolet)](#results)
-[![p50](https://img.shields.io/badge/p50-0.73_ms-orange)](#results)
+[![PromptWall](https://img.shields.io/badge/PromptWall-45.1%25_@_0%25_FP-blueviolet)](#results)
+[![p50](https://img.shields.io/badge/p50-0.85_ms-orange)](#results)
 
 </div>
 
@@ -43,7 +43,7 @@ No ML models. No external API calls. Pure Python standard library. **Sub-millise
 
 | Threshold | Caught | False positives | p50 |
 |---|---|---|---|
-| **CRITICAL** | **544/629 (86.5%)** | **5/97 (5.2%)** | **0.73 ms** |
+| **CRITICAL** | **544/629 (86.5%)** | **5/97 (5.2%)** | **0.85 ms** |
 | HIGH | 629/629 (100%) | 11/97 (11.3%) | 0.67 ms |
 
 ### Comparison to published baselines on the same corpus
@@ -55,9 +55,9 @@ No ML models. No external API calls. Pure Python standard library. **Sub-millise
 | llm-guard | 20% | 2% | 124 ms |
 | protectai-deberta-v2 | 23% | 4% | 163 ms |
 | jailbreak-detector-large | 51% | 2% | 110 ms |
-| **subcanopy-guard (CRITICAL)** | **86.5%** | **5.2%** | **0.73 ms** |
+| **subcanopy-guard (CRITICAL)** | **86.5%** | **5.2%** | **0.85 ms** |
 
-<sub>Baselines from [`rudratoshs/buried-injections`](https://github.com/rudratoshs/buried-injections). All detectors evaluated on CPU. At `--block-at CRITICAL` we beat the paper's leader by 35 points at comparable false-positive rate and ~150× lower latency.</sub>
+<sub>Baselines from [`rudratoshs/buried-injections`](https://github.com/rudratoshs/buried-injections). All detectors evaluated on CPU. At `--block-at CRITICAL` we beat the paper's leader by 35 points at comparable false-positive rate and ~130× lower latency.</sub>
 
 ### PromptWall — 430 attacks, 8 categories, 70 safe prompts
 
@@ -65,19 +65,19 @@ The **generalization test**: 8 different attack families with distinct templates
 
 | Category | Caught | Rate |
 |---|---|---|
-| multi_turn_drift | 21/35 | 60.0% |
-| indirect_injection | 22/46 | 47.8% |
-| direct_injection | 37/95 | 38.9% |
-| social_engineering | 16/42 | 38.1% |
-| jailbreak | 27/74 | 36.5% |
-| persona_hijacking | 15/43 | 34.9% |
-| encoded_attack | 8/44 | 18.2% |
-| prompt_exfiltration | 3/51 | 5.9% |
-| **Overall** | **149/430** | **34.7%** |
+| multi_turn_drift | 23/35 | 65.7% |
+| prompt_exfiltration | 28/51 | 54.9% |
+| indirect_injection | 25/46 | 54.3% |
+| social_engineering | 21/42 | 50.0% |
+| direct_injection | 44/95 | 46.3% |
+| jailbreak | 28/74 | 37.8% |
+| persona_hijacking | 16/43 | 37.2% |
+| encoded_attack | 9/44 | 20.5% |
+| **Overall** | **194/430** | **45.1%** |
 
-**False positives: 0/70 (0%).** p50 latency: 0.08 ms.
+**False positives: 0/70 (0%).** p50 latency: 0.09 ms.
 
-<sub>Dataset: [`cyberec/promptwall-injection-dataset`](https://huggingface.co/datasets/cyberec/promptwall-injection-dataset). Overall recall more than doubled from v0.2.0 (14.7% → 34.7%) with zero new false positives. Remaining gaps in prompt exfiltration and encoded attacks are scheduled for v0.4.0 — see [ROADMAP.md](ROADMAP.md).</sub>
+<sub>Dataset: [`cyberec/promptwall-injection-dataset`](https://huggingface.co/datasets/cyberec/promptwall-injection-dataset). Overall recall has more than tripled from v0.2.0 (14.7% → 45.1%) with zero false positives. Remaining gap is encoded attacks (base64, homoglyphs), scheduled for v0.4.0 — see [ROADMAP.md](ROADMAP.md).</sub>
 
 ---
 
@@ -132,8 +132,8 @@ Three signals, combined.
 
 Two scoring layers feed a sliding 25-token window with 10-token stride:
 
-- **Token layer.** A ~60-verb lexicon with two tiers. STRONG verbs (`ignore`, `disregard`, `jailbreak`, `override`) weigh 1.5; REGULAR verbs (`print`, `execute`, `act`, `send`) weigh 0.5.
-- **Phrase layer.** Multi-word patterns (`developer mode`, `no restrictions`, `DAN`, `ignore all previous`, `act as`, `pretend you are`) contribute their weight once per occurrence to the first overlapping token.
+- **Token layer.** A ~60-verb lexicon with two tiers. STRONG verbs (`ignore`, `disregard`, `jailbreak`, `override`, `repeat`) weigh 1.5; REGULAR verbs (`print`, `execute`, `act`, `send`) weigh 0.5.
+- **Phrase layer.** Multi-word patterns (`developer mode`, `system prompt`, `no restrictions`, `DAN`, `ignore all previous`, `act as`, `pretend you are`, `word for word`) contribute their weight once per occurrence to the first overlapping token.
 
 Window score is `min(weighted / 2.0, 1.0)`. The highest window score is the density risk. A single STRONG verb or a single jailbreak phrase pushes a window to HIGH on its own.
 
@@ -186,17 +186,17 @@ This is a **heuristic detector**, not a classifier. It is deliberately complemen
 
 - ✅ Template-based indirect injection buried in tool output (AgentDojo)
 - ✅ Distinguishing injection register from tool-output register
-- ✅ Recognising common jailbreak and persona-hijack vocabulary
+- ✅ Recognising jailbreak, persona-hijack, and prompt-exfiltration vocabulary
 - ✅ Running fast enough for per-tool-call scanning in production
 
 **Weak at:**
 
-- ❌ **Encoded attacks** — base64, morse, unicode homoglyphs are not decoded
-- ❌ **Prompt exfiltration phrased without our keywords** — e.g. "exact instructions word for word"
+- ❌ **Encoded attacks** — base64, morse, unicode homoglyphs are not decoded (v0.4.0)
 - ❌ **Paraphrased attacks** that don't change register or use known verbs
 - ❌ **Sophisticated social engineering** — polite, embedded, indistinguishable from benign requests
+- ❌ **Attacks relying on procedural knowledge** rather than vocabulary
 
-**Known false positives on AgentDojo v1:** 5/97 (5.2%) at `--block-at CRITICAL`. The v0.3.0 phrase layer introduced 2 additional false positives (3/97 → 5/97) in exchange for doubling PromptWall recall. Tradeoff documented; tracked for a future tuning pass.
+**Known false positives on AgentDojo v1:** 5/97 (5.2%) at `--block-at CRITICAL`. The v0.3.0 phrase layer introduced 2 additional false positives (3/97 → 5/97) in exchange for a large recall gain on the PromptWall generalization benchmark. Tradeoff documented; tracked for a future tuning pass.
 
 > ⚠️ **Do not use Subcanopy Guard as your only defense.** It is a fast pre-filter. Pair it with a transformer classifier for direct injection and with taint-tracking for agent tool-call security.
 
@@ -206,7 +206,7 @@ This is a **heuristic detector**, not a classifier. It is deliberately complemen
 
 | | |
 |---|---|
-| Per-scan latency | 0.08–0.73 ms |
+| Per-scan latency | 0.09–0.85 ms |
 | ML models | None |
 | Runtime dependencies | None |
 | Python | 3.14+ |
@@ -237,6 +237,7 @@ All contributions require a signed [CLA](CLA.md). See [CONTRIBUTING.md](CONTRIBU
 See [ROADMAP.md](ROADMAP.md). Highlights:
 
 - **v0.3.0** — lexicon expansion for jailbreak and persona attacks ✅ shipped
+- **v0.3.1** — prompt-exfiltration phrases ✅ shipped
 - **v0.4.0** — optional decoding layer for base64 and homoglyphs
 - **v0.5.0** — streaming scanner and framework integrations
 

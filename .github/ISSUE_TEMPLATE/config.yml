@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and general discussion
+    url: https://github.com/Vick606/subcanopy-guard/discussions
+    about: Ask questions, share attack samples, or discuss benchmarks.
+  - name: Report a security vulnerability
+    url: https://github.com/Vick606/subcanopy-guard/security/advisories/new
+    about: Use the private channel for vulnerabilities. Do not open a public issue.
+  - name: Read the security policy
+    url: https://github.com/Vick606/subcanopy-guard/blob/main/SECURITY.md
+    about: Supported versions, reporting process, and out-of-scope items.

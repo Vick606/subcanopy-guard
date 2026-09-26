@@ -7,11 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-09-26
+
 ### Added
 
+- Prompt-exfiltration phrases in the density lexicon: `system prompt`,
+  `your (exact|original)? instructions`, `word for word`, `verbatim`, and
+  `(harmful|dangerous|malicious|illegal|unsafe) (instructions|content|acts|information)`.
+- `act as` phrase broadened to accept `(if|a|an|my|the)`, catching
+  persona-hijack patterns like "act as my deceased grandmother".
 - `SECURITY.md`: vulnerability disclosure policy with supported versions,
-  private reporting channels, response SLA, and out-of-scope items
-- `CODE_OF_CONDUCT.md`: Contributor Covenant v2.1
+  private reporting channels, response SLA, and out-of-scope items.
+- `CODE_OF_CONDUCT.md`: Contributor Covenant v2.1.
+- `CITATION.cff`: enables GitHub's "Cite this repository" button.
+- `.gitattributes`: normalizes line endings across platforms.
+- `.github/ISSUE_TEMPLATE/`: bug report, feature request, and config.
+- `.github/PULL_REQUEST_TEMPLATE.md`: contribution checklist.
+- `assets/social-preview.svg` and `assets/social-preview.png`: 1280x640
+  banner for GitHub social preview and announcement posts.
+- New test classes: `TestExfiltrationPhrases` in `tests/test_density.py`,
+  `TestExfiltrationDetection` in `tests/test_scanner.py`.
+
+### Changed
+
+- **`repeat` promoted from REGULAR (0.5) to STRONG (1.5).** In an
+  injection context, "repeat" is almost always diagnostic.
+
+### Results
+
+- **PromptWall**: 34.7% -> **45.1%** overall at 0% false positives
+  - `prompt_exfiltration`: 5.9% -> 54.9%
+  - `social_engineering`: 38.1% -> 50.0%
+  - `direct_injection`: 38.9% -> 46.3%
+  - `indirect_injection`: 47.8% -> 54.3%
+  - `multi_turn_drift`: 60.0% -> 65.7%
+  - `persona_hijacking`: 34.9% -> 37.2%
+  - `jailbreak`: 36.5% -> 37.8%
+  - `encoded_attack`: 18.2% -> 20.5%
+- **AgentDojo v1**: unchanged at 86.5% caught, 5.2% false positives,
+  0.85 ms (CRITICAL).
+- Test suite: **126 passing**.
 
 ## [0.3.0] - 2026-09-25
 
@@ -35,15 +70,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Results
 
-- **PromptWall**: 14.7% → **34.7%** overall at 0% false positives
-  - `multi_turn_drift`: 22.9% → 60.0%
-  - `social_engineering`: 9.5% → 38.1%
-  - `jailbreak`: 8.1% → 36.5%
-  - `persona_hijacking`: 4.7% → 34.9%
-  - `indirect_injection`: 34.8% → 47.8%
-  - `direct_injection`: 22.1% → 38.9%
+- **PromptWall**: 14.7% -> **34.7%** overall at 0% false positives
+  - `multi_turn_drift`: 22.9% -> 60.0%
+  - `social_engineering`: 9.5% -> 38.1%
+  - `jailbreak`: 8.1% -> 36.5%
+  - `persona_hijacking`: 4.7% -> 34.9%
+  - `indirect_injection`: 34.8% -> 47.8%
+  - `direct_injection`: 22.1% -> 38.9%
 - **AgentDojo v1**: unchanged at 86.5% caught (CRITICAL). False positives
-  3.1% → 5.2% (documented tradeoff for the phrase layer).
+  3.1% -> 5.2% (documented tradeoff for the phrase layer).
 - Test suite: **111 passing**.
 
 ## [0.2.0] - 2026-09-25
@@ -55,8 +90,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Discontinuity signal** (`discontinuity.py`): adjacent-sentence stylometric
   delta using second-person pronoun density and imperative verb density.
 - **Provenance adjustment** (`provenance.py`): source-aware risk multipliers
-  (`tool_output` 1.5×, `retrieved_doc` 1.3×, `user_input` 1.0×,
-  `system_prompt` 0.5×).
+  (`tool_output` 1.5x, `retrieved_doc` 1.3x, `user_input` 1.0x,
+  `system_prompt` 0.5x).
 - **ContextScanner** (`scanner.py`): composes the three signals with a
   weighted sum, agreement bonus, and 5-level severity classification
   (CLEAN/LOW/MEDIUM/HIGH/CRITICAL).
@@ -109,7 +144,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `pytest` and `ruff` configuration via `uv` dependency groups.
 - Empty `tests/` package.
 
-[Unreleased]: https://github.com/Vick606/subcanopy-guard/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Vick606/subcanopy-guard/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/Vick606/subcanopy-guard/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Vick606/subcanopy-guard/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Vick606/subcanopy-guard/compare/v0.1.0-scaffold...v0.2.0
 [0.1.0-scaffold]: https://github.com/Vick606/subcanopy-guard/releases/tag/v0.1.0-scaffold

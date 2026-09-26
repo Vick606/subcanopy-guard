@@ -1,0 +1,27 @@
+# Subcanopy Guard
+
+> Context-aware indirect prompt injection scanner for AI agent tool outputs.
+
+## What it does
+
+Detects prompt injection attacks buried inside tool output, retrieved
+documents, and other untrusted content that AI agents process.
+
+## Key facts
+
+- AgentDojo v1: 86.5% caught at 5.2% false positives, 0.85 ms per scan
+- PromptWall: 45.1% overall at 0% false positives
+- Zero runtime dependencies, pure Python standard library
+- Python 3.14+, AGPL-3.0 with commercial licensing available
+
+## Install
+
+pip install subcanopy-guard
+
+## Repository
+
+https://github.com/Vick606/subcanopy-guard
+
+## License
+
+AGPL-3.0-or-later for Community Edition, Commercial License available.

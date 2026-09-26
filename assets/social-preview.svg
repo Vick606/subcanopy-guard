@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0D1117"/>
+      <stop offset="100%" stop-color="#1a1f2e"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#58a6ff"/>
+      <stop offset="100%" stop-color="#8A2BE2"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1280" height="640" fill="url(#bg)"/>
+
+  <!-- subtle grid -->
+  <g opacity="0.04" stroke="#ffffff" stroke-width="1">
+    <line x1="0" y1="160" x2="1280" y2="160"/>
+    <line x1="0" y1="320" x2="1280" y2="320"/>
+    <line x1="0" y1="480" x2="1280" y2="480"/>
+    <line x1="320" y1="0" x2="320" y2="640"/>
+    <line x1="640" y1="0" x2="640" y2="640"/>
+    <line x1="960" y1="0" x2="960" y2="640"/>
+  </g>
+
+  <!-- top-left bracket accent -->
+  <path d="M 60 100 L 60 60 L 100 60" fill="none" stroke="url(#accent)" stroke-width="3"/>
+  <!-- bottom-right bracket accent -->
+  <path d="M 1220 540 L 1220 580 L 1180 580" fill="none" stroke="url(#accent)" stroke-width="3"/>
+
+  <!-- title -->
+  <text x="640" y="270"
+        font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif"
+        font-size="88" font-weight="700" fill="#ffffff"
+        text-anchor="middle" letter-spacing="-2">
+    Subcanopy Guard
+  </text>
+
+  <!-- accent underline -->
+  <rect x="520" y="300" width="240" height="3" rx="1.5" fill="url(#accent)"/>
+
+  <!-- tagline -->
+  <text x="640" y="356"
+        font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif"
+        font-size="26" font-weight="400" fill="#c9d1d9"
+        text-anchor="middle">
+    Context-aware indirect prompt injection scanner
+  </text>
+  <text x="640" y="392"
+        font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif"
+        font-size="26" font-weight="400" fill="#c9d1d9"
+        text-anchor="middle">
+    for AI agent tool outputs
+  </text>
+
+  <!-- metrics row -->
+  <g font-family="'SF Mono', Menlo, Consolas, monospace" font-size="18" fill="#8b949e"
+     text-anchor="middle">
+    <text x="320" y="500">86.5% caught</text>
+    <text x="640" y="500">5.2% false pos</text>
+    <text x="960" y="500">0.73 ms p50</text>
+  </g>
+
+  <!-- metric labels -->
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif"
+     font-size="13" fill="#6e7681" text-anchor="middle">
+    <text x="320" y="524">AgentDojo v1</text>
+    <text x="640" y="524">CRITICAL threshold</text>
+    <text x="960" y="524">zero runtime deps</text>
+  </g>
+
+  <!-- footer -->
+  <text x="640" y="590"
+        font-family="'SF Mono', Menlo, Consolas, monospace" font-size="15" fill="#6e7681"
+        text-anchor="middle">
+    github.com/Vick606/subcanopy-guard · AGPL-3.0
+  </text>
+</svg>

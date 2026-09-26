@@ -28,10 +28,10 @@ Scoring has two layers:
    common imperatives ("print", "run", "send"). The window score is
    normalized by a fixed target count, not by window size.
 
-2. Phrase-level. Multi-word patterns ("developer mode", "no restrictions",
-   "ignore all previous") contribute their weight once per occurrence to
-   the first token they overlap. Phrases are necessary because the marker
-   for many jailbreaks is not a single verb.
+2. Phrase-level. Multi-word patterns ("developer mode", "system prompt",
+   "ignore all previous") contribute their weight once per occurrence
+   to the first token they overlap. Phrases are necessary because the
+   marker for many jailbreaks is not a single verb.
 """
 
 from __future__ import annotations
@@ -65,6 +65,7 @@ _STRONG_VERBS: frozenset[str] = frozenset(
         "leak",
         "exfiltrate",
         "smuggle",
+        "repeat",
     }
 )
 
@@ -74,7 +75,6 @@ _REGULAR_VERBS: frozenset[str] = frozenset(
         "print",
         "output",
         "say",
-        "repeat",
         "reveal",
         "expose",
         "show",
@@ -145,16 +145,17 @@ _TOKEN_RE = re.compile(r"\w+|[^\w\s]", re.UNICODE)
 # ---------------------------------------------------------------------------
 # Phrase lexicon
 # ---------------------------------------------------------------------------
-# Multi-word patterns that mark jailbreaks, persona hijacking, or instruction
-# override. Each pattern contributes its weight once per occurrence to the
-# first token it overlaps. Weights are tuned so a single phrase pushes a
-# window to HIGH risk on its own.
+# Multi-word patterns that mark jailbreaks, persona hijacking, instruction
+# override, or prompt exfiltration. Each pattern contributes its weight
+# once per occurrence to the first token it overlaps.
 #
 # Deliberate choices:
 # - `DAN` is case-sensitive so the name "Dan" does not match.
 # - `no (restrictions|filters|...)` requires the qualifier be one of a
 #   small closed set. This avoids flagging sentences like "no rules exist
 #   in this house" in ordinary prose.
+# - `your (exact|original)? instructions` requires the possessive pronoun
+#   so "exact instructions from the contractor" does not match.
 
 _PHRASE_PATTERNS: tuple[tuple[re.Pattern[str], float], ...] = (
     # Jailbreak markers
@@ -173,10 +174,16 @@ _PHRASE_PATTERNS: tuple[tuple[re.Pattern[str], float], ...] = (
         re.IGNORECASE,
     ), 1.5),
     # Persona hijacking
-    (re.compile(r"\bact\s+as\s+(if|a|an)\b", re.IGNORECASE), 1.0),
+    (re.compile(r"\bact\s+as\s+(if|a|an|my|the)\b", re.IGNORECASE), 1.0),
     (re.compile(r"\bpretend\s+(to\s+be|you\s+are)\b", re.IGNORECASE), 1.0),
     (re.compile(r"\broleplay\s+as\b", re.IGNORECASE), 1.0),
     (re.compile(r"\byou\s+are\s+an?\s+(ai|assistant|model)\b", re.IGNORECASE), 0.5),
+    # Harmful-content framing used in persona hijacks and social engineering
+    (re.compile(
+        r"\b(harmful|dangerous|malicious|illegal|unsafe)\s+"
+        r"(instructions|content|acts?|information)\b",
+        re.IGNORECASE,
+    ), 1.5),
     # Instruction override
     (re.compile(
         r"\bignore\s+(all\s+|any\s+)?(previous|prior|above|earlier|preceding)\b",
@@ -195,6 +202,14 @@ _PHRASE_PATTERNS: tuple[tuple[re.Pattern[str], float], ...] = (
         r"\boverride\s+(your|all|any)\s+(safety|security|instructions|rules)\b",
         re.IGNORECASE,
     ), 1.5),
+    # Prompt exfiltration
+    (re.compile(r"\bsystem\s+prompt\b", re.IGNORECASE), 1.5),
+    (re.compile(
+        r"\byour\s+(exact\s+|original\s+)?instructions\b",
+        re.IGNORECASE,
+    ), 1.5),
+    (re.compile(r"\bword\s+for\s+word\b", re.IGNORECASE), 1.0),
+    (re.compile(r"\bverbatim\b", re.IGNORECASE), 0.5),
 )
 
 

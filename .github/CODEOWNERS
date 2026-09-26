@@ -1,0 +1,7 @@
+# Default owner for everything
+* @Vick606
+
+# Ensure security-related files get your review
+/SECURITY.md @Vick606
+/src/subcanopy_guard/density.py @Vick606
+/src/subcanopy_guard/scanner.py @Vick606

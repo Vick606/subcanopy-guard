@@ -1,6 +1,6 @@
 [project]
 name = "subcanopy-guard"
-version = "0.1.0"
+version = "0.3.1"
 description = "Context-aware indirect prompt injection scanner for AI agent tool outputs"
 readme = "README.md"
 authors = [{ name = "Victor", email = "vickoch20@gmail.com" }]

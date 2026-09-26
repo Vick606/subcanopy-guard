@@ -11,11 +11,19 @@
 # Commercial licensing is available for organizations that cannot comply
 # with the AGPL. See COMMERCIAL_LICENSE.md.
 
-"""Subcanopy Guard — context-aware indirect prompt injection scanner."""
+"""Subcanopy Guard - context-aware indirect prompt injection scanner."""
 
-__version__ = "0.1.0"
+from importlib.metadata import PackageNotFoundError, version
 
 from subcanopy_guard.exceptions import InjectionRiskError
 from subcanopy_guard.scanner import ContextScanner, ScanResult
+
+try:
+    __version__ = version("subcanopy-guard")
+except PackageNotFoundError:
+    # Package is not installed (e.g. running from a source checkout
+    # without `uv sync`). Fall back to a clear marker rather than
+    # silently reporting a stale number.
+    __version__ = "0.0.0+unknown"
 
 __all__ = ["ContextScanner", "ScanResult", "InjectionRiskError", "__version__"]

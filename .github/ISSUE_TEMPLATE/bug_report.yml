@@ -1,0 +1,80 @@
+name: Bug Report
+description: Report a bug, crash, or unexpected scanner behavior
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. Before you continue, check
+        [Discussions](https://github.com/Vick606/subcanopy-guard/discussions)
+        for questions and [SECURITY.md](https://github.com/Vick606/subcanopy-guard/blob/main/SECURITY.md)
+        for vulnerability reporting.
+
+        **Do not file a public issue for security vulnerabilities.** Use the private channel in SECURITY.md.
+
+  - type: input
+    id: version
+    attributes:
+      label: Subcanopy Guard version
+      description: Output of `scg --version` or the version from `pip show subcanopy-guard`
+      placeholder: "0.3.0"
+    validations:
+      required: true
+
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      description: Output of `python --version`
+      placeholder: "3.14.7"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: source
+    attributes:
+      label: Provenance source used
+      options:
+        - tool_output
+        - retrieved_doc
+        - user_input
+        - system_prompt
+        - Not applicable
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Minimal reproduction
+      description: |
+        Provide the smallest input that triggers the bug. For a scanner bug,
+        include the exact text scanned and the command or Python call used.
+      render: python
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant output
+      description: Paste the full traceback or `scg scan --json` output.
+      render: shell
+    validations:
+      required: false

@@ -36,3 +36,5 @@ vendor/
 # Benchmark artifacts (generated)
 bench/corpus_agentdojo.jsonl
 bench/results_scg.json
+
+RESUME.md

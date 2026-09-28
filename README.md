@@ -179,6 +179,14 @@ severity = classify(final)
 Severity bands: `CLEAN < 0.15` · `LOW < 0.35` · `MEDIUM < 0.55` · `HIGH < 0.75` · `CRITICAL ≥ 0.75`.
 
 ---
+## Validation
+
+Real-world test results, methodology, and known gaps are documented in
+[docs/validation.md](docs/validation.md). The test battery is reproducible:
+
+    uv run python scripts/real_world_test.py
+
+---
 
 ## Limitations
 

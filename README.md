@@ -25,6 +25,8 @@ The best detector caught **51%**. Meta's Prompt Guard 2 caught **1%**. A regex b
 
 The reason is **context dilution**: the same attack that a classifier catches with 100% accuracy on its own drops to 23% when surrounded by benign text. Whole-sequence transformers see one big input and the injection signal gets washed out.
 
+Source: [rudratoshs/buried-injections](https://github.com/rudratoshs/buried-injections) — a reproducible benchmark with raw results in `bench/results/agentdojo.json`.
+
 ## The approach
 
 Subcanopy Guard attacks the problem from a different angle. Instead of classifying the whole text at once, it slides a window across the input and measures **local instruction density** — the concentration of imperative verbs and jailbreak phrases within that window. It then layers on two more signals:

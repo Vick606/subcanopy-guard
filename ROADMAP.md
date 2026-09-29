@@ -8,15 +8,26 @@
 
 ---
 
-## [x] v0.3.1 - Current (September 2026)
+## [x] v0.4.0 - Current (September 2026)
+
+- Decoding pass for base64, Morse, and Unicode homoglyphs
+- Opt-in via `scg scan --decode` or `ScannerConfig(decode_encoded=True)`
+- New `normalize.py` module and `ScanResult.decoded` field
+- **PromptWall:** 47.0% overall @ 0% FP with `--decode`
+  - `encoded_attack`: 20.5% -> 38.6%
+- **AgentDojo v1:** unchanged at 86.5% caught @ 5.2% FP at CRITICAL, 0.88 ms
+- Real-world validation battery: 15/15 attacks with `--decode`
+- Test suite: 181 passing
+- Remaining obfuscation gaps: double encoding, non-standard alphabets, chained obfuscation
+
+## [x] v0.3.1 - Shipped (September 2026)
 
 - Prompt-exfiltration phrases: `system prompt`, `your (exact|original)? instructions`, `word for word`, `verbatim`
 - Harmful-content framing: `(harmful|dangerous|malicious|illegal|unsafe) (instructions|content|acts)`
 - `act as` broadened to accept `(if|a|an|my|the)` for persona hijacks
 - `repeat` promoted from REGULAR to STRONG weight
 - **PromptWall:** 45.1% overall @ 0% FP
-- **AgentDojo v1:** 86.5% caught @ 5.2% FP at CRITICAL, 0.85 ms
-- Test suite: 126 passing
+- **AgentDojo v1:** 86.5% caught @ 5.2% FP at CRITICAL
 
 ## [x] v0.3.0 - Shipped (September 2026)
 
@@ -34,17 +45,7 @@
 - CLI `scg scan` with file, stdin, JSON output, and provenance flags
 - `protect()` decorator for Python integrations
 
-## [ ] v0.4.0 - Planned (Q1 2027)
-
-**Focus: handle obfuscation.**
-
-- Optional decoding layer for base64, morse, and unicode homoglyphs
-- Two-stage scan: fast first pass, then decode-and-rescan only when a decode pattern is detected
-- Opt-in via `scg scan --decode` (default off)
-
-**Expected impact:** PromptWall `encoded_attack` 20.5% -> 50%+.
-
-## [ ] v0.5.0 - Planned
+## [ ] v0.5.0 - Planned (Q1 2027)
 
 **Focus: production readiness.**
 
@@ -52,6 +53,7 @@
 - Structured output formats: SARIF, JSONL, CSV
 - Integration examples for LangChain, CrewAI, and the OpenAI Agents SDK
 - Response scanning (post-LLM output for data leakage)
+- HTTP API as an optional `[http]` extra (`scg serve`)
 
 ## [ ] v1.0.0 - Planned
 

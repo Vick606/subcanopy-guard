@@ -7,6 +7,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-29
+
+### Added
+
+- Decoding pass for encoded and obfuscated payloads. Opt-in via
+  `ScannerConfig.decode_encoded` or `scg scan --decode`.
+- `normalize.py` module: homoglyph folding, base64 detection and
+  decoding, Morse detection and decoding.
+- `ScanResult.decoded` field indicating when the decoded pass produced
+  the winning result.
+- `docs/normalize.md`: techniques, rationale, and known limitations of
+  homoglyph folding, base64 detection, and Morse detection.
+- `docs/scanner.md`: composition strategy, availability rule, agreement
+  bonus, severity bands, and the optional decoding pass.
+- `--decode` flag on `scg scan`.
+- `--decode` flag on `bench/run.py` and `bench/promptwall.py`.
+- `scripts/real_world_test.py`: real-world validation battery with 15
+  attack cases and 9 benign cases, including base64, Cyrillic
+  homoglyph, and Morse-encoded attacks.
+- Three encoded attack cases in the validation battery:
+  `encoded_base64`, `encoded_homoglyph`, `encoded_morse`.
+- New test classes: `TestFoldHomoglyphs`, `TestDiagnostics`,
+  `TestShannonEntropy`, `TestFindBase64Segments`, `TestApplySegments`,
+  `TestEndToEndBase64`, `TestMorseDetection`, `TestMorseIntegration`
+  in `tests/test_normalize.py`; `TestDecodeEncoded` in
+  `tests/test_scanner.py`; `TestDecodeFlag` in `tests/test_cli.py`.
+
+### Changed
+
+- `scanner.py` refactored: signal composition moved to a private
+  `_run_signals()` helper, called by both the standard and decoded
+  passes. Default behavior is unchanged.
+- `ContextScanner.scan()` now calls `_scan_with_decoding()` when
+  `decode_encoded` is enabled.
+
+### Fixed
+
+- `tests/test_normalize.py`: entropy test uses a larger random payload
+  (192 bytes vs 48) to reduce sampling variance below the 5.0 threshold.
+- `tests/test_scanner.py`: decoding test uses Cyrillic homoglyphs
+  instead of Turkish characters, which fold to ASCII under Python's
+  regex `IGNORECASE` and therefore do not require the decode pass.
+
+### Results
+
+- **PromptWall** with `--decode`:
+  - Overall: 45.1% -> **47.0%** at 0% false positives
+  - `encoded_attack`: 20.5% -> **38.6%**
+  - All other categories unchanged
+- **AgentDojo v1**: unchanged at 86.5% caught, 5.2% false positives.
+  p50 increases from 0.88 ms to 1.13 ms when decoding is enabled.
+- **Real-world validation battery**:
+  - Without `--decode`: 12/15 attacks, 8/9 benign
+  - With `--decode`: **15/15 attacks**, 8/9 benign
+- Test suite: **181 passing**.
+
+### Notes
+
+- The decoding pass is opt-in. Default behavior is identical to
+  v0.3.1. Deployments that only handle plain text pay no performance
+  cost.
+- Real PromptWall `encoded_attack` recovery is 38.6%, not 100%. The
+  synthetic battery cases all pass because they use the three
+  techniques the decoder handles. Real encoded attacks use additional
+  variations (double encoding, non-standard alphabets, chained
+  obfuscation) documented as known gaps in `docs/normalize.md`.
+- One false positive observed on the validation battery: the phrase
+  `developer mode` matches a benign reference to a UI toggle. This is
+  the documented cost of the phrase layer added in v0.3.0, unrelated
+  to the v0.4.0 changes.
+
 ## [0.3.1] - 2026-09-26
 
 ### Added
@@ -144,7 +215,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `pytest` and `ruff` configuration via `uv` dependency groups.
 - Empty `tests/` package.
 
-[Unreleased]: https://github.com/Vick606/subcanopy-guard/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/Vick606/subcanopy-guard/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/Vick606/subcanopy-guard/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/Vick606/subcanopy-guard/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Vick606/subcanopy-guard/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Vick606/subcanopy-guard/compare/v0.1.0-scaffold...v0.2.0

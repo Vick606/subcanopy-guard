@@ -19,6 +19,7 @@ Usage:
     cat file.txt | scg scan -
     scg scan --json file.txt
     scg scan --source tool_output --block-at HIGH file.txt
+    scg scan --decode file.txt       # second pass on homoglyphs, base64, Morse
 
 Exit codes:
     0   no findings at or above the block threshold
@@ -35,7 +36,7 @@ import sys
 from pathlib import Path
 
 from subcanopy_guard import __version__
-from subcanopy_guard.scanner import ContextScanner, ScanResult
+from subcanopy_guard.scanner import ContextScanner, ScannerConfig, ScanResult
 
 _VALID_SOURCES = ("tool_output", "retrieved_doc", "user_input", "system_prompt")
 _VALID_SEVERITIES = ("CLEAN", "LOW", "MEDIUM", "HIGH", "CRITICAL")
@@ -70,6 +71,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Provenance source tag (default: tool_output)",
     )
     scan.add_argument(
+        "--decode",
+        action="store_true",
+        help="Run a second pass on decoded content (homoglyphs, base64, Morse)",
+    )
+    scan.add_argument(
         "--json",
         action="store_true",
         help="Emit structured JSON instead of human-readable output",
@@ -102,6 +108,8 @@ def _print_human(result: ScanResult, path: str) -> None:
     print(f"  severity:    {result.severity}")
     print(f"  risk:        {result.risk:.2f}")
     print(f"  source:      {result.source}")
+    if result.decoded:
+        print("  decoded:     true")
     print("  signals:")
     print(f"    density:        {result.density_risk:.2f}")
     print(f"    discontinuity:  {result.discontinuity_risk:.2f}")
@@ -138,7 +146,8 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         print(f"scg scan: cannot read {args.path}: {exc}", file=sys.stderr)
         return 2
 
-    scanner = ContextScanner(source=args.source)
+    config = ScannerConfig(decode_encoded=args.decode)
+    scanner = ContextScanner(source=args.source, config=config)
     result = scanner.scan(text)
 
     if args.json:

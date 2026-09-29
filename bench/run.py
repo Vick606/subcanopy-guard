@@ -13,18 +13,12 @@
 
 """Run Subcanopy Guard against the buried-injections AgentDojo corpus.
 
-Mirrors the metric computed by vendor/buried-injections/bench/run.py so
-our numbers are directly comparable to the published baselines:
-
-    attacks_caught / attacks_total
-    false_blocks / benign_total
-    median latency per scan
-
 Usage:
     uv run python -m bench.run
     uv run python -m bench.run --block-at HIGH
     uv run python -m bench.run --source tool_output
     uv run python -m bench.run --show-misses 5
+    uv run python -m bench.run --decode
 """
 
 from __future__ import annotations
@@ -35,7 +29,7 @@ import time
 from pathlib import Path
 
 from bench.corpus import load
-from subcanopy_guard.scanner import ContextScanner
+from subcanopy_guard.scanner import ContextScanner, ScannerConfig
 
 RESULTS_PATH = Path(__file__).parent / "results_scg.json"
 
@@ -51,13 +45,15 @@ def run(
     block_at: str,
     source: str,
     show_misses: int = 0,
+    decode: bool = False,
 ) -> dict:
     """Run the scanner over the corpus and return the metrics row."""
     cases = load()
     attacks = [c for c in cases if c["label"] == "attack"]
     benign = [c for c in cases if c["label"] == "benign"]
 
-    scanner = ContextScanner(source=source)
+    config = ScannerConfig(decode_encoded=decode)
+    scanner = ContextScanner(source=source, config=config)
 
     caught = 0
     false_blocks = 0
@@ -100,6 +96,7 @@ def run(
         "detector": "subcanopy-guard",
         "block_at": block_at,
         "source": source,
+        "decode_encoded": decode,
         "attacks_total": len(attacks),
         "attacks_caught": caught,
         "detection_rate": caught / len(attacks) if attacks else 0.0,
@@ -121,6 +118,7 @@ def _print_row(row: dict) -> None:
     print(f"\nDetector:    {row['detector']}")
     print(f"Source:      {row['source']}")
     print(f"Block at:    {row['block_at']}")
+    print(f"Decode:      {row['decode_encoded']}")
     print()
     print(
         f"  Caught:      {row['attacks_caught']}/{row['attacks_total']}"
@@ -140,9 +138,11 @@ def _print_misses(misses: list[dict]) -> None:
         return
     print("\nSample misses (attacks that scored below blocking):")
     for i, m in enumerate(misses, 1):
-        print(f"\n  [{i}] suite={m['suite']}  severity={m['severity']}  "
-              f"risk={m['risk']}  density={m['density']}  "
-              f"discontinuity={m['discontinuity']}")
+        print(
+            f"\n  [{i}] suite={m['suite']}  severity={m['severity']}  "
+            f"risk={m['risk']}  density={m['density']}  "
+            f"discontinuity={m['discontinuity']}"
+        )
         print(f"      tail: ...{m['preview'].replace(chr(10), ' | ')}")
 
 
@@ -169,13 +169,18 @@ def main() -> None:
         help="Print N sample attacks that were missed (default: 0)",
     )
     parser.add_argument(
+        "--decode",
+        action="store_true",
+        help="Enable the decoding pass (homoglyphs, base64, Morse)",
+    )
+    parser.add_argument(
         "--save",
         action="store_true",
         help=f"Write the result row to {RESULTS_PATH.name}",
     )
     args = parser.parse_args()
 
-    row = run(args.block_at, args.source, args.show_misses)
+    row = run(args.block_at, args.source, args.show_misses, args.decode)
     _print_row(row)
 
     misses = row.pop("_misses", None)

@@ -13,16 +13,11 @@
 
 """PromptWall generalization benchmark.
 
-The PromptWall dataset (cyberec/promptwall-injection-dataset) contains
-430 attacks across 8 categories plus 70 safe prompts for false-positive
-testing. Unlike AgentDojo v1, PromptWall uses many different templates
-and attack families. This is a generalization test: does the scanner
-hold up on data it was never tuned on?
-
 Usage:
     uv run python -m bench.promptwall
-    uv run python -m bench.promptwall --block-at HIGH --per-category
+    uv run python -m bench.promptwall --per-category
     uv run python -m bench.promptwall --show-misses 3
+    uv run python -m bench.promptwall --decode
 """
 
 from __future__ import annotations
@@ -33,7 +28,7 @@ import time
 from collections import defaultdict
 from pathlib import Path
 
-from subcanopy_guard.scanner import ContextScanner
+from subcanopy_guard.scanner import ContextScanner, ScannerConfig
 
 DATA_DIR = Path(__file__).parent.parent / "vendor" / "promptwall"
 
@@ -49,7 +44,7 @@ def _load_jsonl(path: Path) -> list[dict]:
 
 
 def load() -> tuple[list[dict], list[dict]]:
-    """Return (attacks, safe). Each is a list of dicts with 'prompt' and 'attack_type'."""
+    """Return (attacks, safe)."""
     attacks = _load_jsonl(DATA_DIR / "attacks.jsonl")
     safe = _load_jsonl(DATA_DIR / "safe.jsonl")
     return attacks, safe
@@ -67,9 +62,11 @@ def run(
     source: str,
     per_category: bool,
     show_misses: int,
+    decode: bool = False,
 ) -> dict:
     attacks, safe = load()
-    scanner = ContextScanner(source=source)
+    config = ScannerConfig(decode_encoded=decode)
+    scanner = ContextScanner(source=source, config=config)
 
     caught_by_type: dict[str, int] = defaultdict(int)
     total_by_type: dict[str, int] = defaultdict(int)
@@ -112,6 +109,7 @@ def run(
         "detector": "subcanopy-guard",
         "block_at": block_at,
         "source": source,
+        "decode_encoded": decode,
         "attacks_total": len(attacks),
         "attacks_caught": total_caught,
         "detection_rate": total_caught / len(attacks) if attacks else 0.0,
@@ -142,6 +140,7 @@ def _print_summary(row: dict) -> None:
     print(f"Detector:   {row['detector']}")
     print(f"Source:     {row['source']}")
     print(f"Block at:   {row['block_at']}")
+    print(f"Decode:     {row['decode_encoded']}")
     print()
     print(
         f"  Caught:     {row['attacks_caught']}/{row['attacks_total']}"
@@ -194,7 +193,7 @@ def main() -> None:
         "--source",
         default="user_input",
         choices=["tool_output", "retrieved_doc", "user_input", "system_prompt"],
-        help="PromptWall prompts are direct user inputs, so user_input is the default",
+        help="PromptWall prompts are direct user inputs (default: user_input)",
     )
     parser.add_argument(
         "--per-category",
@@ -207,9 +206,20 @@ def main() -> None:
         default=0,
         help="Print N sample misses",
     )
+    parser.add_argument(
+        "--decode",
+        action="store_true",
+        help="Enable the decoding pass (homoglyphs, base64, Morse)",
+    )
     args = parser.parse_args()
 
-    row = run(args.block_at, args.source, args.per_category, args.show_misses)
+    row = run(
+        args.block_at,
+        args.source,
+        args.per_category,
+        args.show_misses,
+        args.decode,
+    )
     _print_summary(row)
     _print_by_category(row)
 

@@ -8,10 +8,10 @@ Fast, dependency-free, and built to catch what whole-sequence classifiers miss.
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 [![Python 3.14+](https://img.shields.io/badge/python-3.14+-3776AB?logo=python&logoColor=white)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-126_passing-brightgreen.svg)](#)
+[![Tests](https://img.shields.io/badge/tests-181_passing-brightgreen.svg)](#)
 [![AgentDojo](https://img.shields.io/badge/AgentDojo-86.5%25_@_5.2%25_FP-8A2BE2)](#results)
-[![PromptWall](https://img.shields.io/badge/PromptWall-45.1%25_@_0%25_FP-blueviolet)](#results)
-[![p50](https://img.shields.io/badge/p50-0.85_ms-orange)](#results)
+[![PromptWall](https://img.shields.io/badge/PromptWall-47.0%25_@_0%25_FP-blueviolet)](#results)
+[![p50](https://img.shields.io/badge/p50-0.88_ms-orange)](#results)
 
 </div>
 
@@ -35,6 +35,8 @@ Subcanopy Guard attacks the problem from a different angle. Instead of classifyi
 - 📐 **Discontinuity** — style breaks between adjacent sentences
 - 🎯 **Provenance** — risk multiplier by source (tool output, retrieved doc, user input, system prompt)
 
+Optional decoding pass for base64, Morse, and Unicode homoglyphs (`--decode`, off by default).
+
 No ML models. No external API calls. Pure Python standard library. **Sub-millisecond scans.**
 
 ---
@@ -45,7 +47,7 @@ No ML models. No external API calls. Pure Python standard library. **Sub-millise
 
 | Threshold | Caught | False positives | p50 |
 |---|---|---|---|
-| **CRITICAL** | **544/629 (86.5%)** | **5/97 (5.2%)** | **0.85 ms** |
+| **CRITICAL** | **544/629 (86.5%)** | **5/97 (5.2%)** | **0.88 ms** |
 | HIGH | 629/629 (100%) | 11/97 (11.3%) | 0.67 ms |
 
 ### Comparison to published baselines on the same corpus
@@ -57,13 +59,13 @@ No ML models. No external API calls. Pure Python standard library. **Sub-millise
 | llm-guard | 20% | 2% | 124 ms |
 | protectai-deberta-v2 | 23% | 4% | 163 ms |
 | jailbreak-detector-large | 51% | 2% | 110 ms |
-| **subcanopy-guard (CRITICAL)** | **86.5%** | **5.2%** | **0.85 ms** |
+| **subcanopy-guard (CRITICAL)** | **86.5%** | **5.2%** | **0.88 ms** |
 
-<sub>Baselines from [`rudratoshs/buried-injections`](https://github.com/rudratoshs/buried-injections). All detectors evaluated on CPU. At `--block-at CRITICAL` we beat the paper's leader by 35 points at comparable false-positive rate and ~130× lower latency.</sub>
+<sub>Baselines from [`rudratoshs/buried-injections`](https://github.com/rudratoshs/buried-injections). All detectors evaluated on CPU. At `--block-at CRITICAL` we beat the paper's leader by 35 points at comparable false-positive rate and ~125× lower latency.</sub>
 
 ### PromptWall — 430 attacks, 8 categories, 70 safe prompts
 
-The **generalization test**: 8 different attack families with distinct templates, not one. Direct user input, `source=user_input`.
+The **generalization test**: 8 different attack families with distinct templates, not one. Direct user input, `source=user_input`, with `--decode` enabled.
 
 | Category | Caught | Rate |
 |---|---|---|
@@ -72,14 +74,16 @@ The **generalization test**: 8 different attack families with distinct templates
 | indirect_injection | 25/46 | 54.3% |
 | social_engineering | 21/42 | 50.0% |
 | direct_injection | 44/95 | 46.3% |
+| encoded_attack | 17/44 | 38.6% |
 | jailbreak | 28/74 | 37.8% |
 | persona_hijacking | 16/43 | 37.2% |
-| encoded_attack | 9/44 | 20.5% |
-| **Overall** | **194/430** | **45.1%** |
+| **Overall** | **202/430** | **47.0%** |
 
-**False positives: 0/70 (0%).** p50 latency: 0.09 ms.
+**False positives: 0/70 (0%).** p50 latency: 0.15 ms.
 
-<sub>Dataset: [`cyberec/promptwall-injection-dataset`](https://huggingface.co/datasets/cyberec/promptwall-injection-dataset). Overall recall has more than tripled from v0.2.0 (14.7% → 45.1%) with zero false positives. Remaining gap is encoded attacks (base64, homoglyphs), scheduled for v0.4.0 — see [ROADMAP.md](ROADMAP.md).</sub>
+Without `--decode`, `encoded_attack` drops to 20.5% and overall to 45.1%.
+
+<sub>Dataset: [`cyberec/promptwall-injection-dataset`](https://huggingface.co/datasets/cyberec/promptwall-injection-dataset). Overall recall has more than tripled from v0.2.0 (14.7% → 47.0%) with zero false positives. Remaining gap is encoded attacks that use double encoding, non-standard alphabets, or chained obfuscation — see [docs/normalize.md](docs/normalize.md).</sub>
 
 ---
 
@@ -100,6 +104,7 @@ cat response.txt | scg scan -      # pipe from another tool
 scg scan --json suspicious.txt     # structured output for CI
 scg scan --source retrieved_doc doc.txt
 scg scan --block-at MEDIUM file.txt
+scg scan --decode encoded.txt      # decode base64, Morse, and homoglyphs
 ```
 
 Exit codes: **0** clean · **1** blocked · **2** usage/file error. Drop-in for CI pipelines and pre-tool-call gates.
@@ -107,13 +112,22 @@ Exit codes: **0** clean · **1** blocked · **2** usage/file error. Drop-in for 
 ### Python
 
 ```python
-from subcanopy_guard import ContextScanner
+from subcanopy_guard import ContextScanner, ScannerConfig
 
 scanner = ContextScanner(source="tool_output")
 result = scanner.scan(tool_response)
 
 if result.severity in ("HIGH", "CRITICAL"):
     log.warning("blocked: %s at %s", result.matches, result.hotspots)
+```
+
+With the decoding pass enabled:
+
+```python
+scanner = ContextScanner(
+    source="tool_output",
+    config=ScannerConfig(decode_encoded=True),
+)
 ```
 
 Or as a decorator:
@@ -178,13 +192,18 @@ severity = classify(final)
 
 Severity bands: `CLEAN < 0.15` · `LOW < 0.35` · `MEDIUM < 0.55` · `HIGH < 0.75` · `CRITICAL ≥ 0.75`.
 
+### Optional decoding pass
+
+When `--decode` is enabled (or `ScannerConfig(decode_encoded=True)`), the scanner runs a second pass on normalized text. Homoglyphs are folded via NFKC plus a Cyrillic/Greek/Turkish mapping, and base64 and Morse segments are decoded and rescanned. The pass with the higher risk wins, and `ScanResult.decoded` is set to `True` when the decoded pass produced the result. Default is off. See [docs/normalize.md](docs/normalize.md) for the techniques and their known limitations.
+
 ---
+
 ## Validation
 
-Real-world test results, methodology, and known gaps are documented in
-[docs/validation.md](docs/validation.md). The test battery is reproducible:
+Real-world test results, methodology, and known gaps are documented in [docs/validation.md](docs/validation.md). The test battery is reproducible:
 
     uv run python scripts/real_world_test.py
+    uv run python scripts/real_world_test.py --decode
 
 ---
 
@@ -197,16 +216,17 @@ This is a **heuristic detector**, not a classifier. It is deliberately complemen
 - ✅ Template-based indirect injection buried in tool output (AgentDojo)
 - ✅ Distinguishing injection register from tool-output register
 - ✅ Recognising jailbreak, persona-hijack, and prompt-exfiltration vocabulary
+- ✅ Detecting base64, Morse, and Cyrillic/Greek homoglyph obfuscation when `--decode` is enabled
 - ✅ Running fast enough for per-tool-call scanning in production
 
 **Weak at:**
 
-- ❌ **Encoded attacks** — base64, morse, unicode homoglyphs are not decoded (v0.4.0)
+- ❌ **Advanced obfuscation** — double encoding, non-standard base64 alphabets, and chained obfuscation are not decoded
 - ❌ **Paraphrased attacks** that don't change register or use known verbs
 - ❌ **Sophisticated social engineering** — polite, embedded, indistinguishable from benign requests
 - ❌ **Attacks relying on procedural knowledge** rather than vocabulary
 
-**Known false positives on AgentDojo v1:** 5/97 (5.2%) at `--block-at CRITICAL`. The v0.3.0 phrase layer introduced 2 additional false positives (3/97 → 5/97) in exchange for a large recall gain on the PromptWall generalization benchmark. Tradeoff documented; tracked for a future tuning pass.
+**Known false positives on AgentDojo v1:** 5/97 (5.2%) at `--block-at CRITICAL`. The v0.3.0 phrase layer introduced 2 additional false positives (3/97 → 5/97) in exchange for a large recall gain on the PromptWall generalization benchmark. The validation battery also produces one false positive on benign sentences that mention `developer mode` as a UI reference. Tradeoffs documented; tracked for a future tuning pass.
 
 > ⚠️ **Do not use Subcanopy Guard as your only defense.** It is a fast pre-filter. Pair it with a transformer classifier for direct injection and with taint-tracking for agent tool-call security.
 
@@ -216,12 +236,12 @@ This is a **heuristic detector**, not a classifier. It is deliberately complemen
 
 | | |
 |---|---|
-| Per-scan latency | 0.09–0.85 ms |
+| Per-scan latency | 0.09–1.13 ms (higher bound with `--decode`) |
 | ML models | None |
 | Runtime dependencies | None |
 | Python | 3.14+ |
 
-Compare to the fastest transformer detector (`fmops-distilbert`, 31 ms) — Subcanopy Guard is ~40–150× faster, but trades recall on encoded and socially-engineered attacks for that speed. That tradeoff is deliberate.
+Compare to the fastest transformer detector (`fmops-distilbert`, 31 ms) — Subcanopy Guard is ~30–150× faster, but trades recall on advanced obfuscation and socially-engineered attacks for that speed. That tradeoff is deliberate.
 
 ---
 
@@ -248,7 +268,7 @@ See [ROADMAP.md](ROADMAP.md). Highlights:
 
 - **v0.3.0** — lexicon expansion for jailbreak and persona attacks ✅ shipped
 - **v0.3.1** — prompt-exfiltration phrases ✅ shipped
-- **v0.4.0** — optional decoding layer for base64 and homoglyphs
+- **v0.4.0** — decoding pass for base64, Morse, and homoglyphs ✅ shipped
 - **v0.5.0** — streaming scanner and framework integrations
 
 ## Acknowledgments

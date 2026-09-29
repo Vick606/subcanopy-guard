@@ -40,7 +40,7 @@ class TestParser:
             cli.main(["--version"])
         assert exc.value.code == 0
         out = capsys.readouterr().out
-        assert "scg 0.1.0" in out
+        assert "scg 0.3.1" in out
 
     def test_no_command_prints_help(self, capsys) -> None:
         code = cli.main([])

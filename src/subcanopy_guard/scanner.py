@@ -11,27 +11,7 @@
 # Commercial licensing is available for organizations that cannot comply
 # with the AGPL. See COMMERCIAL_LICENSE.md.
 
-"""Public scanner API.
-
-This module composes the three detection signals (density, discontinuity,
-provenance) into a single ContextScanner that returns a structured
-ScanResult and optionally raises InjectionRiskError via the protect()
-decorator.
-
-Combination strategy:
-1. Combine density and discontinuity, honoring signal availability.
-   A signal that cannot be computed (input too short) does NOT dilute
-   the available signal with a phantom zero. If both are available, use
-   a weighted sum with an agreement bonus; if only one is available,
-   use it directly; if neither is available, the combined risk is 0.0.
-2. Provenance multiplier applied after combination.
-3. Severity classification from the final adjusted risk.
-
-References:
-- ASCEND severity model (critical/high/medium/low/info)
-- tester311249/llm-security threat levels (SAFE/LOW/MEDIUM/HIGH/CRITICAL)
-- LLM Guard scanner composition pattern
-"""
+"""Public scanner API. See docs/scanner.md for design notes."""
 
 from __future__ import annotations
 
@@ -40,20 +20,14 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, TypeVar
 
-from subcanopy_guard import density, discontinuity, provenance
+from subcanopy_guard import density, discontinuity, normalize, provenance
 from subcanopy_guard.exceptions import InjectionRiskError
-
-# ---------------------------------------------------------------------------
-# Default weights and thresholds
-# ---------------------------------------------------------------------------
 
 _DENSITY_WEIGHT = 0.6
 _DISCONTINUITY_WEIGHT = 0.4
 _AGREEMENT_THRESHOLD = 0.3
 _AGREEMENT_BONUS = 1.15
 
-# Severity boundaries. Based on ASCEND and llm-security conventions,
-# mapped to a normalized [0.0, 1.0] risk scale.
 _SEVERITY_BANDS: tuple[tuple[float, str], ...] = (
     (0.75, "CRITICAL"),
     (0.55, "HIGH"),
@@ -65,71 +39,37 @@ _SEVERITY_BANDS: tuple[tuple[float, str], ...] = (
 _T = TypeVar("_T")
 
 
-# ---------------------------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------------------------
-
 @dataclass
 class ScannerConfig:
     """Configuration for the ContextScanner."""
 
     density_weight: float = _DENSITY_WEIGHT
-    """Weight of the density signal in the combined risk."""
-
     discontinuity_weight: float = _DISCONTINUITY_WEIGHT
-    """Weight of the discontinuity signal in the combined risk."""
-
     agreement_threshold: float = _AGREEMENT_THRESHOLD
-    """Both signals must exceed this value to trigger the agreement bonus."""
-
     agreement_bonus: float = _AGREEMENT_BONUS
-    """Multiplier applied to the combined risk when both signals agree."""
-
     block_severity: str = "HIGH"
-    """Minimum severity at which protect() raises InjectionRiskError."""
+    decode_encoded: bool = False
 
-
-# ---------------------------------------------------------------------------
-# Result type
-# ---------------------------------------------------------------------------
 
 @dataclass
 class ScanResult:
     """Structured result of a scan."""
 
     severity: str
-    """One of CLEAN, LOW, MEDIUM, HIGH, CRITICAL."""
-
     risk: float
-    """Final adjusted risk score in [0.0, 1.0]."""
-
     source: str
-    """The provenance source tag used for adjustment."""
-
     density_risk: float = 0.0
-    """Raw density signal contribution before weighting."""
-
     discontinuity_risk: float = 0.0
-    """Raw discontinuity signal contribution before weighting."""
-
     provenance_multiplier: float = 1.0
-    """Multiplier applied by the provenance stage."""
-
     matches: list[str] = field(default_factory=list)
-    """Human-readable labels of the signals that fired."""
-
     hotspots: list[tuple[int, int]] = field(default_factory=list)
-    """Character-offset ranges of suspicious regions."""
+    decoded: bool = False
 
     def is_blocking(self, threshold: str = "HIGH") -> bool:
         """Return True if severity is at or above the given threshold."""
         order = {"CLEAN": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
         return order.get(self.severity, 0) >= order.get(threshold, 3)
 
-
-# ---------------------------------------------------------------------------
-# Severity classification
-# ---------------------------------------------------------------------------
 
 def classify(risk: float) -> str:
     """Map a normalized risk score to a severity label."""
@@ -139,16 +79,11 @@ def classify(risk: float) -> str:
     return "CLEAN"
 
 
-# ---------------------------------------------------------------------------
-# Scanner
-# ---------------------------------------------------------------------------
-
 class ContextScanner:
     """Context-aware indirect prompt injection scanner.
 
-    Composes density, discontinuity, and provenance signals into a single
-    scan. The scanner is stateless and reentrant; create one per source
-    type or share across calls.
+    Composes density, discontinuity, and provenance signals. Stateless
+    and reentrant.
     """
 
     def __init__(
@@ -170,30 +105,51 @@ class ContextScanner:
 
         Args:
             text: The input text to scan.
-            source: Optional override for the provenance source tag. If
-                omitted, the scanner's configured source is used.
+            source: Optional provenance source override.
 
         Returns:
             A ScanResult with severity, risk, contributions, and hotspots.
         """
         effective_source = source or self.source
+        result = self._run_signals(text, effective_source)
 
-        # Stage 1: density
+        if self.config.decode_encoded:
+            result = self._scan_with_decoding(text, effective_source, result)
+
+        return result
+
+    def _scan_with_decoding(
+        self,
+        text: str,
+        source: str,
+        baseline: ScanResult,
+    ) -> ScanResult:
+        """Run a second pass on the normalized and decoded text."""
+        normalized = normalize.fold_homoglyphs(text)
+
+        segments = normalize.find_encoded_segments(normalized)
+        if segments:
+            normalized = normalize.apply_segments(normalized, segments)
+
+        if normalized == text:
+            return baseline
+
+        decoded_result = self._run_signals(normalized, source)
+
+        if decoded_result.risk > baseline.risk:
+            decoded_result.decoded = True
+            return decoded_result
+
+        return baseline
+
+    def _run_signals(self, text: str, source: str) -> ScanResult:
+        """Run the three signals on text and produce a ScanResult."""
         density_result = density.score(text, self._density_config)
         d_risk = density_result.risk
 
-        # Stage 2: discontinuity
         disc_result = discontinuity.score(text, self._discontinuity_config)
         i_risk = disc_result.risk
 
-        # Stage 3: combine signals, honoring availability.
-        #
-        # If a signal is not available (input too short to compute it), we
-        # do NOT dilute the available signal with a phantom zero. A signal
-        # that cannot be computed should not vote against a signal that can.
-        # This matters for short single-sentence injections (the majority
-        # of direct-injection and jailbreak attacks in PromptWall), where
-        # discontinuity has no adjacent sentences to compare.
         d_available = density_result.available
         i_available = disc_result.available
 
@@ -215,25 +171,18 @@ class ContextScanner:
         else:
             base = 0.0
 
-        # Stage 4: provenance adjustment
-        prov_result = provenance.adjust(base, effective_source, self._provenance_config)
+        prov_result = provenance.adjust(base, source, self._provenance_config)
         final_risk = prov_result.risk
-
-        # Stage 5: classification
         severity = classify(final_risk)
 
-        # Build human-readable match labels
         matches: list[str] = []
         if d_risk >= 0.3:
             matches.append(f"density={d_risk:.2f}")
         if i_risk >= 0.3:
             matches.append(f"discontinuity={i_risk:.2f}")
         if prov_result.multiplier != 1.0:
-            matches.append(
-                f"provenance={effective_source}({prov_result.multiplier:.1f}x)"
-            )
+            matches.append(f"provenance={source}({prov_result.multiplier:.1f}x)")
 
-        # Merge hotspots from both signals, sorted by start offset
         hotspots = sorted(
             set(density_result.hotspots) | set(disc_result.hotspots),
             key=lambda h: h[0],
@@ -242,7 +191,7 @@ class ContextScanner:
         return ScanResult(
             severity=severity,
             risk=final_risk,
-            source=effective_source,
+            source=source,
             density_risk=d_risk,
             discontinuity_risk=i_risk,
             provenance_multiplier=prov_result.multiplier,
@@ -257,16 +206,13 @@ class ContextScanner:
     ) -> Callable[[Callable[..., _T]], Callable[..., _T]]:
         """Decorator that scans an argument before calling the function.
 
-        If the scan result is at or above the configured block severity,
-        InjectionRiskError is raised with the ScanResult attached.
-
         Args:
-            arg_name: Name of the keyword argument to scan. If None, the
-                first positional argument is scanned.
-            source: Optional provenance source override for the scan.
+            arg_name: Keyword argument name. If None, the first positional
+                argument is scanned.
+            source: Optional provenance source override.
 
         Returns:
-            A decorator that wraps the target function.
+            A decorator that raises InjectionRiskError on blocking severity.
         """
 
         def decorator(func: Callable[..., _T]) -> Callable[..., _T]:

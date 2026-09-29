@@ -4,8 +4,8 @@
 """Text normalization for encoded and obfuscated payloads.
 
 Defeats character-level evasion (homoglyphs, zero-width characters) and
-encoding evasion (base64) before scanning. See docs/normalize.md for the
-rationale, sources, and known limitations of each technique.
+encoding evasion (base64, Morse) before scanning. See docs/normalize.md
+for the rationale, sources, and known limitations of each technique.
 """
 
 from __future__ import annotations
@@ -78,15 +78,8 @@ def count_homoglyphs(text: str) -> int:
 
 
 # ---------------------------------------------------------------------------
-# Base64 detection
+# Shared types and helpers
 # ---------------------------------------------------------------------------
-
-# Single pattern matching both alphabets. The character class includes
-# standard (+/) and URL-safe (-_) special characters.
-_BASE64_RE = re.compile(r"[A-Za-z0-9+/\-_]{20,}={0,2}")
-
-_MIN_ENTROPY = 4.0
-_MIN_LENGTH = 20
 
 
 @dataclass
@@ -120,7 +113,19 @@ def _is_printable(text: str, min_ratio: float = 0.85) -> bool:
     return (printable / len(text)) >= min_ratio
 
 
-def _classify_encoding(candidate: str) -> str:
+# ---------------------------------------------------------------------------
+# Base64 detection
+# ---------------------------------------------------------------------------
+
+# Single pattern matching both alphabets. The character class includes
+# standard (+/) and URL-safe (-_) special characters.
+_BASE64_RE = re.compile(r"[A-Za-z0-9+/\-_]{20,}={0,2}")
+
+_MIN_BASE64_LENGTH = 20
+_MIN_BASE64_ENTROPY = 4.0
+
+
+def _classify_base64_encoding(candidate: str) -> str:
     """Classify a base64 candidate as standard or URL-safe.
 
     Standard base64 uses + and /. URL-safe uses - and _.
@@ -177,24 +182,22 @@ def find_base64_segments(text: str) -> list[EncodedSegment]:
 
     for match in _BASE64_RE.finditer(text):
         candidate = match.group(0)
-        if len(candidate) < _MIN_LENGTH:
+        if len(candidate) < _MIN_BASE64_LENGTH:
             continue
 
         entropy = _shannon_entropy(candidate)
-        if entropy < _MIN_ENTROPY:
+        if entropy < _MIN_BASE64_ENTROPY:
             continue
 
         decoded = _try_base64_decode(candidate)
         if decoded is None:
             continue
 
-        encoding = _classify_encoding(candidate)
-
         segments.append(
             EncodedSegment(
                 start=match.start(),
                 end=match.end(),
-                encoding=encoding,
+                encoding=_classify_base64_encoding(candidate),
                 original=candidate,
                 decoded=decoded,
                 entropy=entropy,
@@ -203,6 +206,133 @@ def find_base64_segments(text: str) -> list[EncodedSegment]:
 
     segments.sort(key=lambda s: s.start)
     return segments
+
+
+# ---------------------------------------------------------------------------
+# Morse code detection
+# ---------------------------------------------------------------------------
+# Morse code is a documented prompt injection vector. The Grok incident
+# in May 2026 used Morse to bypass safety filters. NVIDIA's Garak scanner
+# includes encoding.InjectMorse as a standard probe. Detection follows
+# the same pattern as base64: find candidates, decode, validate.
+
+_MORSE_ALPHABET: dict[str, str] = {
+    ".-": "A", "-...": "B", "-.-.": "C", "-..": "D", ".": "E",
+    "..-.": "F", "--.": "G", "....": "H", "..": "I", ".---": "J",
+    "-.-": "K", ".-..": "L", "--": "M", "-.": "N", "---": "O",
+    ".--.": "P", "--.-": "Q", ".-.": "R", "...": "S", "-": "T",
+    "..-": "U", "...-": "V", ".--": "W", "-..-": "X", "-.--": "Y",
+    "--..": "Z",
+    "-----": "0", ".----": "1", "..---": "2", "...--": "3",
+    "....-": "4", ".....": "5", "-....": "6", "--...": "7",
+    "---..": "8", "----.": "9",
+    ".-.-.-": ".", "--..--": ",", "..--..": "?", "-....-": "-",
+    "-..-.": "/", "-.--.": "(", "-.--.-": ")", ".-..-.": '"',
+    "---...": ":", "-.-.--": "!", ".----.": "'", "-...-": "=",
+    ".-.-.": "+", "-.-.-.": ";", "..--.-": "_", ".-...": "&",
+    "...-..-": "$", ".--.-.": "@",
+}
+
+# Characters normalized to dot and dash before matching.
+_MORSE_DOT_VARIANTS = frozenset({".", "\u00b7", "\u2022", "*"})
+_MORSE_DASH_VARIANTS = frozenset({"-", "\u2013", "\u2014", "\u2212", "_"})
+
+_MORSE_CANDIDATE_RE = re.compile(
+    r"[.\-\u00b7\u2022*\u2013\u2014\u2212_/| ]{10,}"
+)
+
+_MIN_MORSE_LENGTH = 10
+_MIN_MORSE_LETTERS = 3
+
+
+def _normalize_morse(text: str) -> str:
+    """Normalize Morse variants to standard dots, dashes, and separators."""
+    result: list[str] = []
+    for ch in text:
+        if ch in _MORSE_DOT_VARIANTS:
+            result.append(".")
+        elif ch in _MORSE_DASH_VARIANTS:
+            result.append("-")
+        elif ch in "/|":
+            result.append("/")
+        else:
+            result.append(ch)
+    return "".join(result)
+
+
+def _decode_morse(candidate: str) -> str | None:
+    """Decode a Morse candidate. Returns None on failure."""
+    normalized = _normalize_morse(candidate).strip()
+    if not normalized:
+        return None
+
+    words = normalized.split("/")
+    decoded_words: list[str] = []
+
+    for word in words:
+        letters = word.strip().split()
+        if not letters:
+            continue
+        decoded_letters: list[str] = []
+        for code in letters:
+            if code not in _MORSE_ALPHABET:
+                return None
+            decoded_letters.append(_MORSE_ALPHABET[code])
+        decoded_words.append("".join(decoded_letters))
+
+    if not decoded_words:
+        return None
+
+    decoded = " ".join(decoded_words)
+    if not decoded or not _is_printable(decoded):
+        return None
+
+    # Require enough decoded letters to avoid matching punctuation noise.
+    if sum(1 for c in decoded if c.isalpha()) < _MIN_MORSE_LETTERS:
+        return None
+
+    return decoded
+
+
+def find_morse_segments(text: str) -> list[EncodedSegment]:
+    """Find Morse code segments in text.
+
+    Detects sequences of dots and dashes with spaces and slashes as
+    separators. Decodes via the ITU standard alphabet and validates
+    that the output is printable text with enough alphabetic content.
+    """
+    if not text:
+        return []
+
+    segments: list[EncodedSegment] = []
+
+    for match in _MORSE_CANDIDATE_RE.finditer(text):
+        candidate = match.group(0)
+        if len(candidate) < _MIN_MORSE_LENGTH:
+            continue
+
+        decoded = _decode_morse(candidate)
+        if decoded is None:
+            continue
+
+        segments.append(
+            EncodedSegment(
+                start=match.start(),
+                end=match.end(),
+                encoding="morse",
+                original=candidate,
+                decoded=decoded,
+                entropy=_shannon_entropy(candidate),
+            )
+        )
+
+    segments.sort(key=lambda s: s.start)
+    return segments
+
+
+# ---------------------------------------------------------------------------
+# Public composition
+# ---------------------------------------------------------------------------
 
 
 def apply_segments(text: str, segments: list[EncodedSegment]) -> str:
@@ -221,5 +351,7 @@ def apply_segments(text: str, segments: list[EncodedSegment]) -> str:
 
 
 def find_encoded_segments(text: str) -> list[EncodedSegment]:
-    """Find all encoded segments. Currently supports base64 variants."""
-    return find_base64_segments(text)
+    """Find all encoded segments. Supports base64 and Morse."""
+    segments = find_base64_segments(text) + find_morse_segments(text)
+    segments.sort(key=lambda s: s.start)
+    return segments

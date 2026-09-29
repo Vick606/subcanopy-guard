@@ -182,3 +182,52 @@ for LLM input sanitization. 2026.
 Multiple sources report that regex-only base64 detection produces
 false-positive rates above 1000 percent on production text. Entropy
 filtering is the standard mitigation.
+
+## Morse code detection
+
+### The technique
+
+Morse code encodes text as sequences of dots and dashes, with spaces
+between letters and slashes between words. It is a documented prompt
+injection vector. In May 2026, an attacker used a Morse-encoded message
+to trick an AI agent into transferring approximately $150,000 in crypto
+tokens. The message bypassed every text-based filter because the encoded
+string contains none of the original keywords.
+
+NVIDIA's Garak vulnerability scanner includes `encoding.InjectMorse` as
+a standard probe for testing whether models can be tricked into decoding
+and executing Morse-encoded payloads.
+
+### Detection approach
+
+The `find_morse_segments` function applies three filters:
+
+**Filter 1: Candidate matching.** A regex finds sequences of dots,
+dashes, spaces, and slashes that are at least 10 characters long. The
+regex accepts Unicode variants of dots (middle dot, bullet) and dashes
+(en dash, em dash, minus sign) that attackers may use to evade
+ASCII-only patterns.
+
+**Filter 2: Decoding.** The candidate is normalized to standard dots and
+dashes, then split into words and letters. Each letter is looked up in
+the ITU Morse alphabet. If any code is not in the alphabet, the
+candidate is rejected.
+
+**Filter 3: Output validation.** The decoded text must be printable
+ASCII and must contain at least three alphabetic characters. This
+rejects Morse-like punctuation sequences that decode to noise.
+
+### Limitations
+
+- **Only ITU standard Morse is decoded.** Non-standard variants
+  (American Morse, or custom mappings) are not supported.
+- **Very short Morse messages are not caught.** A single letter like
+  ".-" is below the 10-character threshold.
+- **Morse embedded in other text may be missed.** The candidate regex
+  requires a contiguous run of Morse characters.
+
+### References for Morse detection
+
+- Grok Morse code prompt injection incident, May 2026
+- NVIDIA Garak `encoding.InjectMorse` probe
+- ITU-R M.1677: International Morse Code

@@ -4,12 +4,13 @@ version = "0.4.0"
 description = "Context-aware indirect prompt injection scanner for AI agent tool outputs"
 readme = "README.md"
 authors = [{ name = "Victor", email = "vickoch20@gmail.com" }]
-requires-python = ">=3.14"
+requires-python = ">=3.13"
 license = { text = "AGPL-3.0-or-later" }
 keywords = ["security", "prompt-injection", "llm", "ai-agents", "owasp"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Security",
 ]
